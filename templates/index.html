@@ -1,0 +1,347 @@
+{% extends "base.html" %}
+
+{% block title %}Artifacts & Interpolations{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h2>Terminal Sump</h2>
+    <p>Browse artifacts and their interpolations.</p>
+</div>
+
+<ul class="nav nav-tabs mb-4" id="myTab" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="artifacts-tab" data-bs-toggle="tab" data-bs-target="#artifacts" type="button" role="tab">
+            Artifacts
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="interpolations-tab" data-bs-toggle="tab" data-bs-target="#interpolations" type="button" role="tab">
+            Interpolations
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="progressions-tab" data-bs-toggle="tab" data-bs-target="#progressions" type="button" role="tab">
+            Progressions
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="myTabContent">
+    <!-- Artifacts Tab -->
+    <div class="tab-pane fade show active" id="artifacts" role="tabpanel">
+        {% if session.admin_id %}
+        <div class="mb-3">
+            <a href="{{ url_for('upload_artifact') }}" class="btn btn-primary">Upload New Artifact</a>
+        </div>
+        {% endif %}
+        
+        <div class="row row-cols-1 row-cols-md-4 g-4">
+            {% for artifact in artifacts %}
+            <div class="col">
+                <div class="card h-100">
+                    <div class="image-container">
+                        <img src="{{ url_for('static', filename='uploads/' + artifact.image_path) }}" 
+                            class="card-img" alt="{{ artifact.title }}">
+                    </div>
+                    <div class="card-body">
+                        <h5 class="card-title">{{ artifact.title }}</h5>
+                        {% if artifact.artist %}
+                        <p class="card-text">{{ artifact.artist }}</p>
+                        {% elif artifact.culture or artifact.period %}
+                        <p class="card-text">
+                            {% if artifact.culture %}{{ artifact.culture }}{% endif %}
+                            {% if artifact.culture and artifact.period %}, {% endif %}
+                            {% if artifact.period %}{{ artifact.period }}{% endif %}
+                        </p>
+                        {% endif %}
+                        <a href="{{ url_for('view_artifact', artifact_id=artifact.id) }}" class="btn btn-sm btn-outline-primary">View Details</a>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="col-12">
+                <div class="alert alert-info">
+                    No artifacts available. {% if session.admin_id %}Please upload some artifacts.{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Interpolations Tab -->
+    <div class="tab-pane fade" id="interpolations" role="tabpanel">
+        {% if session.admin_id %}
+        <div class="mb-3">
+            <a href="{{ url_for('upload_interpolation') }}" class="btn btn-success">Upload New Interpolation</a>
+        </div>
+        {% endif %}
+        
+        <div class="row row-cols-1 row-cols-md-4 g-4">
+            {% for interpolation in interpolations %}
+            <div class="col">
+                <div class="card h-100">
+                    <div class="image-container">
+                        <img src="{{ url_for('static', filename='uploads/' + interpolation.image_path) }}" 
+                            class="card-img" alt="Interpolation">
+                    </div>
+                    <div class="card-body">
+                        {% if interpolation.model %}
+                        <p class="card-text">Model: {{ interpolation.model }}</p>
+                        {% endif %}
+                        <a href="{{ url_for('view_interpolation', interpolation_id=interpolation.id) }}" class="btn btn-sm btn-outline-success">View Details</a>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="col-12">
+                <div class="alert alert-info">
+                    No interpolations available. {% if session.admin_id %}Please upload some interpolations.{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Progressions Tab -->
+    <div class="tab-pane fade" id="progressions" role="tabpanel">
+        
+        {% for pair in paired_interpolations %}
+        <div class="progression-section mb-5">
+            <div class="progression-header mb-4">
+                <h4 class="progression-title">{{ pair.artifact1.title }} ↔ {{ pair.artifact2.title }}</h4>
+                {% if pair.artifact1.artist and pair.artifact2.artist %}
+                <p class="progression-subtitle">{{ pair.artifact1.artist }} → {{ pair.artifact2.artist }}</p>
+                {% endif %}
+            </div>
+            
+            <div class="row row-cols-1 row-cols-md-6 g-3">
+                <!-- Left artifact -->
+                <div class="col">
+                    <div class="card progression-card artifact-card">
+                        <div class="image-container">
+                            <img src="{{ url_for('static', filename='uploads/' + pair.artifact1.image_path) }}" 
+                                class="card-img" alt="{{ pair.artifact1.title }}">
+                        </div>
+                        <div class="card-body compact-body">
+                            <h6 class="card-title">{{ pair.artifact1.title }}</h6>
+                            {% if pair.artifact1.artist %}
+                            <p class="card-text">{{ pair.artifact1.artist }}</p>
+                            {% elif pair.artifact1.culture or pair.artifact1.period %}
+                            <p class="card-text">
+                                {% if pair.artifact1.culture %}{{ pair.artifact1.culture }}{% endif %}
+                                {% if pair.artifact1.culture and pair.artifact1.period %}, {% endif %}
+                                {% if pair.artifact1.period %}{{ pair.artifact1.period }}{% endif %}
+                            </p>
+                            {% endif %}
+                            <a href="{{ url_for('view_artifact', artifact_id=pair.artifact1.id) }}" class="btn btn-xs btn-outline-primary">View</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Interpolations sorted by position -->
+                {% for interp in pair.interpolations %}
+                <div class="col">
+                    <div class="card progression-card interpolation-card">
+                        <div class="image-container">
+                            <img src="{{ url_for('static', filename='uploads/' + interp.image_path) }}" 
+                                class="card-img" alt="Interpolation">
+                        </div>
+                        <div class="card-body compact-body">
+                            <h6 class="card-title weight-title">{{ "%.1f"|format(interp.weight1) }}:{{ "%.1f"|format(interp.weight2) }}</h6>
+                            {% if interp.model %}
+                            <p class="card-text model-text">{{ interp.model }}</p>
+                            {% endif %}
+                            <a href="{{ url_for('view_interpolation', interpolation_id=interp.id) }}" class="btn btn-xs btn-outline-success">View</a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                
+                <!-- Right artifact -->
+                <div class="col">
+                    <div class="card progression-card artifact-card">
+                        <div class="image-container">
+                            <img src="{{ url_for('static', filename='uploads/' + pair.artifact2.image_path) }}" 
+                                class="card-img" alt="{{ pair.artifact2.title }}">
+                        </div>
+                        <div class="card-body compact-body">
+                            <h6 class="card-title">{{ pair.artifact2.title }}</h6>
+                            {% if pair.artifact2.artist %}
+                            <p class="card-text">{{ pair.artifact2.artist }}</p>
+                            {% elif pair.artifact2.culture or pair.artifact2.period %}
+                            <p class="card-text">
+                                {% if pair.artifact2.culture %}{{ pair.artifact2.culture }}{% endif %}
+                                {% if pair.artifact2.culture and pair.artifact2.period %}, {% endif %}
+                                {% if pair.artifact2.period %}{{ pair.artifact2.period }}{% endif %}
+                            </p>
+                            {% endif %}
+                            <a href="{{ url_for('view_artifact', artifact_id=pair.artifact2.id) }}" class="btn btn-xs btn-outline-primary">View</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            No artifact progressions available. Upload some interpolations between artifacts to see progressions.
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+    /* Custom styles for 2:3 aspect ratio images */
+    .image-container {
+        position: relative;
+        width: 100%;
+        padding-top: 150%; /* 2:3 aspect ratio (3/2 * 100%) */
+        overflow: hidden;
+    }
+    
+    .image-container img {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    /* For card layout */
+    .card {
+        transition: transform 0.2s ease;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    
+    .card-body {
+        padding: 1rem;
+    }
+    
+    .card-title {
+        font-size: 1rem;
+        margin-bottom: 0.25rem;
+    }
+    
+    .card-text {
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Progression-specific styles */
+    .progression-section {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 1.5rem;
+        border: 1px solid #e9ecef;
+    }
+    
+    .progression-header {
+        text-align: center;
+        border-bottom: 2px solid #dee2e6;
+        padding-bottom: 1rem;
+    }
+    
+    .progression-title {
+        color: #495057;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+    
+    .progression-subtitle {
+        color: #6c757d;
+        font-style: italic;
+        margin-bottom: 0;
+    }
+    
+    .progression-card {
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .progression-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+    }
+    
+    .artifact-card {
+        border-color: #007bff;
+    }
+    
+    .interpolation-card {
+        border-color: #28a745;
+    }
+    
+    .compact-body {
+        padding: 0.75rem;
+    }
+    
+    .compact-body .card-title {
+        font-size: 0.9rem;
+        margin-bottom: 0.25rem;
+        line-height: 1.2;
+    }
+    
+    .compact-body .card-text {
+        font-size: 0.75rem;
+        color: #6c757d;
+        margin-bottom: 0.5rem;
+        line-height: 1.1;
+    }
+    
+    .weight-title {
+        font-family: 'Courier New', monospace;
+        font-weight: 600;
+        color: #28a745;
+    }
+    
+    .model-text {
+        font-size: 0.7rem;
+        font-style: italic;
+    }
+    
+    .btn-xs {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.7rem;
+        line-height: 1.2;
+    }
+    
+    /* Responsive adjustments */
+    @media (max-width: 767.98px) {
+        .row-cols-md-4 > .col {
+            flex: 0 0 50%;
+            max-width: 50%;
+        }
+        
+        .row-cols-md-6 > .col {
+            flex: 0 0 50%;
+            max-width: 50%;
+        }
+    }
+    
+    @media (max-width: 575.98px) {
+        .row-cols-md-4 > .col {
+            flex: 0 0 100%;
+            max-width: 100%;
+        }
+        
+        .row-cols-md-6 > .col {
+            flex: 0 0 100%;
+            max-width: 100%;
+        }
+        
+        .image-container {
+            padding-top: 120%; /* Slightly shorter for mobile */
+        }
+    }
+</style>
+{% endblock %}

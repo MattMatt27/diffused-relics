@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Interpolation - Museum Artifacts Database{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header bg-success text-white">
+        <h4 class="mb-0">Upload New Interpolation</h4>
+    </div>
+    <div class="card-body">
+        <form method="post" enctype="multipart/form-data">
+            <!-- Image upload first -->
+            <div class="mb-4">
+                <label for="image" class="form-label">Interpolation Image *</label>
+                <input class="form-control" type="file" id="image" name="image" accept="image/*" required>
+                <div class="form-text">Supported formats: JPG, PNG, GIF, TIFF, WebP</div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="model" class="form-label">Generative Model *</label>
+                        <select class="form-select" id="model" name="model" required>
+                            <option value="">Select a model</option>
+                            <option value="Midjourney v6.1">Midjourney v6.1</option>
+                            <option value="Midjourney v6">Midjourney v6</option>
+                            <option value="GPT-4o">GPT-4o</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <!-- Hidden name field with default value based on artifacts and weights -->
+                    <input type="hidden" id="name" name="name" value="Interpolation">
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="description" class="form-label">Description</label>
+                <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+            </div>
+            
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Source Artifacts</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        Select at least 2 source artifacts and assign weights to each.
+                    </div>
+                    
+                    <div id="artifact-container">
+                        <div class="row mb-2 artifact-row">
+                            <div class="col-md-8">
+                                <select class="form-select" name="artifact_id" required>
+                                    <option value="">Select an artifact</option>
+                                    {% for artifact in artifacts %}
+                                    <option value="{{ artifact.id }}">{{ artifact.title }} {% if artifact.artist %}({{ artifact.artist }}){% endif %}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <input type="number" class="form-control" name="weight" placeholder="Weight" value="1.0" step="0.1" min="0" required>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-2 artifact-row">
+                            <div class="col-md-8">
+                                <select class="form-select" name="artifact_id" required>
+                                    <option value="">Select an artifact</option>
+                                    {% for artifact in artifacts %}
+                                    <option value="{{ artifact.id }}">{{ artifact.title }} {% if artifact.artist %}({{ artifact.artist }}){% endif %}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <input type="number" class="form-control" name="weight" placeholder="Weight" value="1.0" step="0.1" min="0" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="add-artifact-btn">
+                        Add Another Artifact
+                    </button>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-success">Upload Interpolation</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const addButton = document.getElementById('add-artifact-btn');
+        const container = document.getElementById('artifact-container');
+        
+        addButton.addEventListener('click', function() {
+            const newRow = document.createElement('div');
+            newRow.className = 'row mb-2 artifact-row';
+            newRow.innerHTML = `
+                <div class="col-md-8">
+                    <select class="form-select" name="artifact_id" required>
+                        <option value="">Select an artifact</option>
+                        {% for artifact in artifacts %}
+                        <option value="{{ artifact.id }}">{{ artifact.title }} {% if artifact.artist %}({{ artifact.artist }}){% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <input type="number" class="form-control" name="weight" placeholder="Weight" value="1.0" step="0.1" min="0" required>
+                </div>
+            `;
+            container.appendChild(newRow);
+        });
+        
+        // Auto-generate a name based on selected artifacts and weights
+        // This is now hidden but still sets a default value for the backend
+        function updateName() {
+            const nameField = document.getElementById('name');
+            nameField.value = "Interpolation"; // Set a default value
+        }
+        
+        // Call initially and whenever artifact selections change
+        updateName();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% block title %}View Artifact - {{ artifact.title }}{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-md-6">
+        <img src="{{ url_for('static', filename='uploads/' + artifact.image_path) }}" 
+             class="img-fluid rounded" alt="{{ artifact.title }}">
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">{{ artifact.title }}</h4>
+                {% if session.admin_id %}
+                <button class="btn btn-sm btn-light" onclick="toggleEditMode()">
+                    <i class="fas fa-edit"></i> Edit
+                </button>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <!-- View Mode -->
+                <div id="view-mode">
+                    <dl class="row">
+                        <dt class="col-sm-3">Title</dt>
+                        <dd class="col-sm-9">{{ artifact.title }}</dd>
+                        
+                        {% if artifact.artist %}
+                        <dt class="col-sm-3">Artist</dt>
+                        <dd class="col-sm-9">{{ artifact.artist }}</dd>
+                        {% endif %}
+                        
+                        {% if artifact.culture %}
+                        <dt class="col-sm-3">Culture</dt>
+                        <dd class="col-sm-9">{{ artifact.culture }}</dd>
+                        {% endif %}
+                        
+                        {% if artifact.period %}
+                        <dt class="col-sm-3">Period</dt>
+                        <dd class="col-sm-9">{{ artifact.period }}</dd>
+                        {% endif %}
+                        
+                        {% if artifact.medium %}
+                        <dt class="col-sm-3">Medium</dt>
+                        <dd class="col-sm-9">{{ artifact.medium }}</dd>
+                        {% endif %}
+                        
+                        {% if artifact.museum %}
+                        <dt class="col-sm-3">Museum</dt>
+                        <dd class="col-sm-9">{{ artifact.museum }}</dd>
+                        {% endif %}
+                    </dl>
+                    
+                    {% if artifact.description %}
+                    <h5>Description</h5>
+                    <p>{{ artifact.description }}</p>
+                    {% endif %}
+                    
+                    {% if artifact.metadata %}
+                    <h5>Additional Metadata</h5>
+                    <p>{{ artifact.metadata }}</p>
+                    {% endif %}
+                    
+                    <p class="text-muted mt-3">Uploaded: {{ artifact.upload_date[:10] }}</p>
+                </div>
+
+                <!-- Edit Mode -->
+                {% if session.admin_id %}
+                <div id="edit-mode" style="display: none;">
+                    <form method="POST" action="{{ url_for('edit_artifact', artifact_id=artifact.id) }}">
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Title *</label>
+                            <input type="text" class="form-control" id="title" name="title" 
+                                   value="{{ artifact.title }}" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="artist" class="form-label">Artist</label>
+                            <input type="text" class="form-control" id="artist" name="artist" 
+                                   value="{{ artifact.artist or '' }}">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="culture" class="form-label">Culture</label>
+                            <input type="text" class="form-control" id="culture" name="culture" 
+                                   value="{{ artifact.culture or '' }}" 
+                                   placeholder="e.g., Japanese, French, Chinese">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="period" class="form-label">Period</label>
+                            <input type="text" class="form-control" id="period" name="period" 
+                                   value="{{ artifact.period or '' }}">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="medium" class="form-label">Medium</label>
+                            <input type="text" class="form-control" id="medium" name="medium" 
+                                   value="{{ artifact.medium or '' }}">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="museum" class="form-label">Museum</label>
+                            <input type="text" class="form-control" id="museum" name="museum" 
+                                   value="{{ artifact.museum or '' }}">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" id="description" name="description" 
+                                      rows="4">{{ artifact.description or '' }}</textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="metadata" class="form-label">Additional Metadata</label>
+                            <textarea class="form-control" id="metadata" name="metadata" 
+                                      rows="3">{{ artifact.metadata or '' }}</textarea>
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">Save Changes</button>
+                            <button type="button" class="btn btn-secondary" onclick="toggleEditMode()">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if interpolations %}
+<div class="mt-4">
+    <h4>Interpolations Using This Artifact</h4>
+    <div class="row row-cols-1 row-cols-md-3 g-4 mt-2">
+        {% for interpolation in interpolations %}
+        <div class="col">
+            <div class="card">
+                <div class="image-container-small">
+                    <img src="{{ url_for('static', filename='uploads/' + interpolation.image_path) }}" 
+                         class="card-img" alt="Interpolation">
+                </div>
+                <div class="card-body">
+                    {% if interpolation.model %}
+                    <p class="card-text">Model: {{ interpolation.model }}</p>
+                    {% endif %}
+                    <a href="{{ url_for('view_interpolation', interpolation_id=interpolation.id) }}" class="btn btn-sm btn-outline-success">View Details</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<div class="mt-3">
+    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Back to Gallery</a>
+    {% if session.admin_id %}
+    <a href="{{ url_for('delete_artifact', artifact_id=artifact.id) }}" 
+       class="btn btn-outline-danger ms-2" 
+       onclick="return confirm('Are you sure you want to delete this artifact? This action cannot be undone.')">
+        Delete Artifact
+    </a>
+    {% endif %}
+</div>
+
+<script>
+function toggleEditMode() {
+    const viewMode = document.getElementById('view-mode');
+    const editMode = document.getElementById('edit-mode');
+    
+    if (viewMode.style.display === 'none') {
+        // Switch to view mode
+        viewMode.style.display = 'block';
+        editMode.style.display = 'none';
+    } else {
+        // Switch to edit mode
+        viewMode.style.display = 'none';
+        editMode.style.display = 'block';
+    }
+}
+</script>
+{% endblock %}
+
+{% block styles %}
+<style>
+    .image-container-small {
+        position: relative;
+        width: 100%;
+        padding-top: 75%; /* 4:3 aspect ratio */
+        overflow: hidden;
+    }
+    
+    .image-container-small img {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+</style>
+{% endblock %}

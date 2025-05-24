@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Artifact - Museum Artifacts Database{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        <h4 class="mb-0">Upload New Artifact</h4>
+    </div>
+    <div class="card-body">
+        <form method="post" enctype="multipart/form-data">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Title *</label>
+                        <input type="text" class="form-control" id="title" name="title" required>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="artist" class="form-label">Artist</label>
+                        <input type="text" class="form-control" id="artist" name="artist">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="mb-3">
+                    <label for="culture" class="form-label">Culture</label>
+                    <input type="text" class="form-control" id="culture" name="culture" 
+                           placeholder="e.g., Japanese, French, Chinese, etc.">
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label for="period" class="form-label">Period</label>
+                        <input type="text" class="form-control" id="period" name="period">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label for="medium" class="form-label">Medium</label>
+                        <input type="text" class="form-control" id="medium" name="medium">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label for="museum" class="form-label">Museum</label>
+                        <input type="text" class="form-control" id="museum" name="museum">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="description" class="form-label">Description</label>
+                <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+            </div>
+            
+            <div class="mb-3">
+                <label for="metadata" class="form-label">Additional Metadata</label>
+                <textarea class="form-control" id="metadata" name="metadata" rows="2" placeholder="Enter any additional metadata here"></textarea>
+                <div class="form-text">Add any additional information that doesn't fit in the fields above</div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="image" class="form-label">Artifact Image *</label>
+                <input class="form-control" type="file" id="image" name="image" accept="image/*" required>
+                <div class="form-text">Supported formats: JPG, PNG, GIF, TIFF, WebP</div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Upload Artifact</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
