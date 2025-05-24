@@ -128,7 +128,7 @@
                             <p class="card-text">{{ pair.artifact1.artist }}</p>
                             {% elif pair.artifact1.culture or pair.artifact1.period %}
                             <p class="card-text">
-                                {% if pair.artifact1.culture %}{{ pair.artifact1.culture}}{% endif %}
+                                {% if pair.artifact1.culture %}{{ pair.artifact1.culture }}{% endif %}
                                 {% if pair.artifact1.culture and pair.artifact1.period %}, {% endif %}
                                 {% if pair.artifact1.period %}{{ pair.artifact1.period }}{% endif %}
                             </p>
@@ -147,7 +147,7 @@
                                 class="card-img" alt="Interpolation">
                         </div>
                         <div class="card-body compact-body">
-                            <h6 class="card-title weight-title">{{ "%.1f"|format(interp.weight1) }} : {{ "%.1f"|format(interp.weight2) }}</h6>
+                            <h5 class="card-title weight-title">{{ "%.1f"|format(interp.weight1) }} : {{ "%.1f"|format(interp.weight2) }}</h5>
                             {% if interp.model %}
                             <p class="card-text model-text">{{ interp.model }}</p>
                             {% endif %}
@@ -165,7 +165,7 @@
                                 class="card-img" alt="{{ pair.artifact2.title }}">
                         </div>
                         <div class="card-body compact-body">
-                            <h6 class="card-title">{{ pair.artifact2.title }}</h6>
+                            <h5 class="card-title">{{ pair.artifact2.title }}</h5>
                             {% if pair.artifact2.artist %}
                             <p class="card-text">{{ pair.artifact2.artist }}</p>
                             {% elif pair.artifact2.culture or pair.artifact2.period %}
