@@ -42,12 +42,9 @@ Thumbs.db
 *.tmp
 *.temp
 
-# Don't ignore empty directories but ignore their contents initially
-static/uploads/*
+# Git Logs
 !static/uploads/.gitkeep
-static/uploads/artifacts/*
 !static/uploads/artifacts/.gitkeep
-static/uploads/interpolations/*
 !static/uploads/interpolations/.gitkeep
 
 # Migration files (temporary - remove after deployment)
