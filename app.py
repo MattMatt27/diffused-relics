@@ -1,5 +1,4 @@
 import os
-import sqlite3
 import secrets
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -10,7 +9,7 @@ from functools import wraps
 # Configuration - production ready
 UPLOAD_FOLDER = 'static/uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'tiff', 'webp'}
-DATABASE_PATH = os.environ.get('DATABASE_URL', 'museum.db')
+DATABASE_URL = os.environ.get('DATABASE_URL', '')
 SECRET_KEY = os.environ.get('SECRET_KEY', secrets.token_hex(16))
 
 app = Flask(__name__)
@@ -22,27 +21,19 @@ app.secret_key = SECRET_KEY
 os.makedirs(os.path.join(UPLOAD_FOLDER, 'artifacts'), exist_ok=True)
 os.makedirs(os.path.join(UPLOAD_FOLDER, 'interpolations'), exist_ok=True)
 
-# Database setup
+# Database setup - PostgreSQL
 def get_db():
     db = getattr(g, '_database', None)
     if db is None:
-        database_url = os.environ.get('DATABASE_URL')
+        import psycopg2
+        import psycopg2.extras
         
-        if database_url and 'postgresql' in database_url:
-            # Production: PostgreSQL on Railway
-            import psycopg2
-            import psycopg2.extras
-            
-            # Fix Railway's postgres:// URL format
-            if database_url.startswith('postgres://'):
-                database_url = database_url.replace('postgres://', 'postgresql://', 1)
-            
-            db = psycopg2.connect(database_url, cursor_factory=psycopg2.extras.RealDictCursor)
-            g._database = db
-        else:
-            # Local development: SQLite
-            db = g._database = sqlite3.connect('museum.db')
-            db.row_factory = sqlite3.Row
+        # Fix Railway's postgres:// URL format
+        database_url = DATABASE_URL
+        if database_url.startswith('postgres://'):
+            database_url = database_url.replace('postgres://', 'postgresql://', 1)
+        
+        db = g._database = psycopg2.connect(database_url, cursor_factory=psycopg2.extras.RealDictCursor)
     return db
 
 @app.teardown_appcontext
@@ -56,106 +47,55 @@ def init_db():
         db = get_db()
         cursor = db.cursor()
         
-        database_url = os.environ.get('DATABASE_URL', '')
-        is_postgres = 'postgresql' in database_url
+        # Create artifacts table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS artifacts (
+            id SERIAL PRIMARY KEY,
+            title TEXT NOT NULL,
+            artist TEXT,
+            culture TEXT,
+            period TEXT,
+            medium TEXT,
+            museum TEXT,
+            description TEXT,
+            image_path TEXT NOT NULL,
+            upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            metadata TEXT
+        )
+        ''')
         
-        if is_postgres:
-            # PostgreSQL syntax
-            cursor.execute('''
-            CREATE TABLE IF NOT EXISTS artifacts (
-                id SERIAL PRIMARY KEY,
-                title TEXT NOT NULL,
-                artist TEXT,
-                culture TEXT,
-                period TEXT,
-                medium TEXT,
-                museum TEXT,
-                description TEXT,
-                image_path TEXT NOT NULL,
-                upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                metadata TEXT
-            )
-            ''')
-            
-            cursor.execute('''
-            CREATE TABLE IF NOT EXISTS interpolations (
-                id SERIAL PRIMARY KEY,
-                model TEXT,
-                description TEXT,
-                image_path TEXT NOT NULL,
-                artifact_ids TEXT NOT NULL,
-                weights TEXT NOT NULL,
-                upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            ''')
-            
-            cursor.execute('''
-            CREATE TABLE IF NOT EXISTS admins (
-                id SERIAL PRIMARY KEY,
-                username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL
-            )
-            ''')
-            
-            # Check for existing admin (PostgreSQL)
-            cursor.execute("SELECT COUNT(*) as count FROM admins")
-            admin_count = cursor.fetchone()['count']
-            
-        else:
-            # SQLite syntax (local development)
-            cursor.execute('''
-            CREATE TABLE IF NOT EXISTS artifacts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT NOT NULL,
-                artist TEXT,
-                culture TEXT,
-                period TEXT,
-                medium TEXT,
-                museum TEXT,
-                description TEXT,
-                image_path TEXT NOT NULL,
-                upload_date TEXT DEFAULT CURRENT_TIMESTAMP,
-                metadata TEXT
-            )
-            ''')
-            
-            cursor.execute('''
-            CREATE TABLE IF NOT EXISTS interpolations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                model TEXT,
-                description TEXT,
-                image_path TEXT NOT NULL,
-                artifact_ids TEXT NOT NULL,
-                weights TEXT NOT NULL,
-                upload_date TEXT DEFAULT CURRENT_TIMESTAMP
-            )
-            ''')
-            
-            cursor.execute('''
-            CREATE TABLE IF NOT EXISTS admins (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL
-            )
-            ''')
-            
-            # Check for existing admin (SQLite)
-            cursor.execute("SELECT COUNT(*) FROM admins")
-            admin_count = cursor.fetchone()[0]
+        # Create interpolations table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS interpolations (
+            id SERIAL PRIMARY KEY,
+            model TEXT,
+            description TEXT,
+            image_path TEXT NOT NULL,
+            artifact_ids TEXT NOT NULL,
+            weights TEXT NOT NULL,
+            upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
         
-        # Create default admin if none exists
+        # Create admin users table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS admins (
+            id SERIAL PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL
+        )
+        ''')
+        
+        # Create a default admin if none exists
+        cursor.execute("SELECT COUNT(*) as count FROM admins")
+        admin_count = cursor.fetchone()['count']
+        
         if admin_count == 0:
             admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
-            if is_postgres:
-                cursor.execute(
-                    "INSERT INTO admins (username, password_hash) VALUES (%s, %s)",
-                    ("admin", generate_password_hash(admin_password))
-                )
-            else:
-                cursor.execute(
-                    "INSERT INTO admins (username, password_hash) VALUES (?, ?)",
-                    ("admin", generate_password_hash(admin_password))
-                )
+            cursor.execute(
+                "INSERT INTO admins (username, password_hash) VALUES (%s, %s)",
+                ("admin", generate_password_hash(admin_password))
+            )
             print("Created default admin user")
             
         db.commit()
@@ -181,8 +121,13 @@ def admin_required(f):
 @app.route('/')
 def index():
     db = get_db()
-    artifacts = db.execute("SELECT * FROM artifacts ORDER BY id DESC").fetchall()
-    interpolations = db.execute("SELECT * FROM interpolations ORDER BY id DESC").fetchall()
+    cursor = db.cursor()
+    
+    cursor.execute("SELECT * FROM artifacts ORDER BY id DESC")
+    artifacts = cursor.fetchall()
+    
+    cursor.execute("SELECT * FROM interpolations ORDER BY id DESC")
+    interpolations = cursor.fetchall()
     
     # Create data structure for the artifact pairs and their interpolations
     paired_interpolations = []
@@ -222,8 +167,11 @@ def index():
         artifact1_id, artifact2_id = pair_key
         
         # Get artifact details
-        artifact1 = db.execute("SELECT * FROM artifacts WHERE id = ?", (artifact1_id,)).fetchone()
-        artifact2 = db.execute("SELECT * FROM artifacts WHERE id = ?", (artifact2_id,)).fetchone()
+        cursor.execute("SELECT * FROM artifacts WHERE id = %s", (artifact1_id,))
+        artifact1 = cursor.fetchone()
+        
+        cursor.execute("SELECT * FROM artifacts WHERE id = %s", (artifact2_id,))
+        artifact2 = cursor.fetchone()
         
         if artifact1 and artifact2:
             # Calculate position for each interpolation
@@ -262,7 +210,9 @@ def login():
         password = request.form['password']
         
         db = get_db()
-        admin = db.execute("SELECT * FROM admins WHERE username = ?", (username,)).fetchone()
+        cursor = db.cursor()
+        cursor.execute("SELECT * FROM admins WHERE username = %s", (username,))
+        admin = cursor.fetchone()
         
         if admin and check_password_hash(admin['password_hash'], password):
             session['admin_id'] = admin['id']
@@ -319,10 +269,11 @@ def upload_artifact():
             
             # Insert into database
             db = get_db()
-            db.execute(
+            cursor = db.cursor()
+            cursor.execute(
                 """INSERT INTO artifacts 
                    (title, artist, culture, period, medium, museum, description, image_path, metadata) 
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (title, artist or None, culture or None, period or None, 
                  medium or None, museum or None, description or None, 
                  file_path, metadata or None)
@@ -340,7 +291,9 @@ def upload_artifact():
 @admin_required
 def upload_interpolation():
     db = get_db()
-    artifacts = db.execute("SELECT id, title, artist FROM artifacts ORDER BY title").fetchall()
+    cursor = db.cursor()
+    cursor.execute("SELECT id, title, artist FROM artifacts ORDER BY title")
+    artifacts = cursor.fetchall()
     
     if request.method == 'POST':
         if 'image' not in request.files:
@@ -376,10 +329,10 @@ def upload_interpolation():
             weights_str = ','.join(weights)
             
             # Insert into database
-            db.execute(
+            cursor.execute(
                 """INSERT INTO interpolations 
                    (model, description, image_path, artifact_ids, weights) 
-                   VALUES (?, ?, ?, ?, ?)""",
+                   VALUES (%s, %s, %s, %s, %s)""",
                 (model, description, file_path, artifact_ids_str, weights_str)
             )
             db.commit()
@@ -392,7 +345,9 @@ def upload_interpolation():
 @app.route('/view/artifact/<int:artifact_id>')
 def view_artifact(artifact_id):
     db = get_db()
-    artifact = db.execute("SELECT * FROM artifacts WHERE id = ?", (artifact_id,)).fetchone()
+    cursor = db.cursor()
+    cursor.execute("SELECT * FROM artifacts WHERE id = %s", (artifact_id,))
+    artifact = cursor.fetchone()
     
     if not artifact:
         flash('Artifact not found', 'error')
@@ -400,7 +355,8 @@ def view_artifact(artifact_id):
     
     # Find interpolations using this artifact
     interpolations = []
-    all_interpolations = db.execute("SELECT * FROM interpolations").fetchall()
+    cursor.execute("SELECT * FROM interpolations")
+    all_interpolations = cursor.fetchall()
     
     for interp in all_interpolations:
         artifact_ids = interp['artifact_ids'].split(',')
@@ -413,9 +369,11 @@ def view_artifact(artifact_id):
 @admin_required
 def edit_artifact(artifact_id):
     db = get_db()
+    cursor = db.cursor()
     
     # Verify artifact exists
-    artifact = db.execute("SELECT * FROM artifacts WHERE id = ?", (artifact_id,)).fetchone()
+    cursor.execute("SELECT * FROM artifacts WHERE id = %s", (artifact_id,))
+    artifact = cursor.fetchone()
     if not artifact:
         flash('Artifact not found', 'error')
         return redirect(url_for('index'))
@@ -437,11 +395,11 @@ def edit_artifact(artifact_id):
     
     try:
         # Update the artifact
-        db.execute(
+        cursor.execute(
             """UPDATE artifacts SET 
-               title = ?, artist = ?, culture = ?, period = ?, 
-               medium = ?, museum = ?, description = ?, metadata = ?
-               WHERE id = ?""",
+               title = %s, artist = %s, culture = %s, period = %s, 
+               medium = %s, museum = %s, description = %s, metadata = %s
+               WHERE id = %s""",
             (title, artist or None, culture or None, period or None, 
              medium or None, museum or None, description or None, 
              metadata or None, artifact_id)
@@ -460,26 +418,26 @@ def edit_artifact(artifact_id):
 @admin_required
 def delete_artifact(artifact_id):
     db = get_db()
+    cursor = db.cursor()
     
     # Get artifact info for cleanup
-    artifact = db.execute("SELECT * FROM artifacts WHERE id = ?", (artifact_id,)).fetchone()
+    cursor.execute("SELECT * FROM artifacts WHERE id = %s", (artifact_id,))
+    artifact = cursor.fetchone()
     if not artifact:
         flash('Artifact not found', 'error')
         return redirect(url_for('index'))
     
     try:
         # Check if artifact is used in any interpolations
-        interpolations = db.execute(
-            "SELECT id FROM interpolations WHERE artifact_ids LIKE ?", 
-            (f'%{artifact_id}%',)
-        ).fetchall()
+        cursor.execute("SELECT id FROM interpolations WHERE artifact_ids LIKE %s", (f'%{artifact_id}%',))
+        interpolations = cursor.fetchall()
         
         if interpolations:
             flash(f'Cannot delete artifact - it is used in {len(interpolations)} interpolation(s). Delete those first.', 'error')
             return redirect(url_for('view_artifact', artifact_id=artifact_id))
         
         # Delete the artifact from database
-        db.execute("DELETE FROM artifacts WHERE id = ?", (artifact_id,))
+        cursor.execute("DELETE FROM artifacts WHERE id = %s", (artifact_id,))
         db.commit()
         
         # Try to delete the image file
@@ -502,7 +460,9 @@ def delete_artifact(artifact_id):
 @app.route('/view/interpolation/<int:interpolation_id>')
 def view_interpolation(interpolation_id):
     db = get_db()
-    interpolation = db.execute("SELECT * FROM interpolations WHERE id = ?", (interpolation_id,)).fetchone()
+    cursor = db.cursor()
+    cursor.execute("SELECT * FROM interpolations WHERE id = %s", (interpolation_id,))
+    interpolation = cursor.fetchone()
     
     if not interpolation:
         flash('Interpolation not found', 'error')
@@ -514,7 +474,8 @@ def view_interpolation(interpolation_id):
     
     source_artifacts = []
     for i, artifact_id in enumerate(artifact_ids):
-        artifact = db.execute("SELECT * FROM artifacts WHERE id = ?", (artifact_id,)).fetchone()
+        cursor.execute("SELECT * FROM artifacts WHERE id = %s", (artifact_id,))
+        artifact = cursor.fetchone()
         if artifact:
             artifact_dict = dict(artifact)
             artifact_dict['weight'] = weights[i] if i < len(weights) else "1.0"
