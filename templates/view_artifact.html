@@ -59,7 +59,7 @@
                     <p>{{ artifact.metadata }}</p>
                     {% endif %}
                     
-                    <p class="text-muted mt-3">Uploaded: {{ artifact.upload_date[:10] }}</p>
+                    <p class="text-muted mt-3">Uploaded: {{ artifact.upload_date.strftime('%Y-%m-%d') if artifact.upload_date else 'Unknown' }}</p>
                 </div>
 
                 <!-- Edit Mode -->

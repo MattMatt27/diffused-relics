@@ -14,7 +14,7 @@
                  class="img-fluid" alt="Interpolation">
             <div class="card-footer">
                 <p class="mb-1"><strong>Model:</strong> {{ interpolation.model }}</p>
-                <p class="mb-0 text-muted small">Uploaded: {{ interpolation.upload_date[:10] }}</p>
+                <p class="text-muted mt-3">Uploaded: {{ interpolation.upload_date.strftime('%Y-%m-%d') if interpolation.upload_date else 'Unknown' }}</p>
             </div>
         </div>
         
