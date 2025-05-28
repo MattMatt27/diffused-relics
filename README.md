@@ -24,4 +24,4 @@ Browse the collection, explore the progressions, and discover the fascinating im
 
 ## Technology
 
-Interpolations in the existing collection were created using Midjourney, the site itself was developed in collaboration with Claude. 
+Interpolations in the existing collection were created using Midjourney, the site itself was developed in collaboration with Claude.  
