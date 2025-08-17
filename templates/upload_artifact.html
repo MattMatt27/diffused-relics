@@ -207,6 +207,20 @@
             
             <!-- Manual Upload Tab -->
             <div class="tab-pane fade" id="manual-content" role="tabpanel">
+                {% if config.get('FLASK_ENV') == 'development' %}
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-info-circle me-2"></i>Local Preview Mode</h6>
+                    <p class="mb-2">You're in development mode. Manual uploads will be saved to a local preview database.</p>
+                    <p class="mb-0">
+                        <strong>What this means:</strong><br>
+                        • Files are saved locally for testing functionality<br>
+                        • Database records are stored in <code>local_preview.db</code> (not production)<br>
+                        • Preview items appear at the top of your artifact list with a preview badge<br>
+                        • <strong>Harvard API artifacts</strong> are still saved to production database
+                    </p>
+                </div>
+                {% endif %}
+                
                 <form method="post" enctype="multipart/form-data" id="manualForm">
                     <div class="row">
                         <div class="col-md-6">

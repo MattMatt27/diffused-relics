@@ -186,6 +186,11 @@
         {% for interpolation in interpolations %}
         <div class="col">
             <div class="card">
+                {% if interpolation.get('is_local_preview') %}
+                <div class="card-header bg-warning text-dark p-2">
+                    <small><i class="fas fa-eye me-1"></i>Local Preview</small>
+                </div>
+                {% endif %}
                 <div class="image-container-small">
                     <img src="{{ url_for('static', filename='uploads/' + interpolation.image_path) }}" 
                          class="card-img" alt="Interpolation">

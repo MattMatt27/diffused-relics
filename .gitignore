@@ -16,9 +16,7 @@ env/
 .env
 
 # Database files (local development only)
-scripts
-museum.db
-*.db
+local_preview.db
 
 # OS generated files
 .DS_Store
