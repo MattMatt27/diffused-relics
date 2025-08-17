@@ -40,8 +40,9 @@
             <div class="col">
                 <div class="card h-100">
                     <div class="image-container">
-                        <img src="{{ url_for('static', filename='uploads/' + artifact.image_path) }}" 
-                            class="card-img" alt="{{ artifact.title }}">
+                        <img src="{{ artifact.display_image_url }}" 
+                            class="card-img" alt="{{ artifact.title }}"
+                            onerror="this.src='/static/no-image.png'">
                     </div>
                     <div class="card-body">
                         <h5 class="card-title">{{ artifact.title }}</h5>
@@ -119,8 +120,9 @@
                 <div class="col">
                     <div class="card progression-card artifact-card">
                         <div class="image-container">
-                            <img src="{{ url_for('static', filename='uploads/' + pair.artifact1.image_path) }}" 
-                                class="card-img" alt="{{ pair.artifact1.title }}">
+                            <img src="{{ pair.artifact1.display_image_url }}" 
+                                class="card-img" alt="{{ pair.artifact1.title }}"
+                                onerror="this.src='/static/no-image.png'">
                         </div>
                         <div class="card-body compact-body">
                             <h5 class="card-title">{{ pair.artifact1.title }}</h5>
@@ -161,8 +163,9 @@
                 <div class="col">
                     <div class="card progression-card artifact-card">
                         <div class="image-container">
-                            <img src="{{ url_for('static', filename='uploads/' + pair.artifact2.image_path) }}" 
-                                class="card-img" alt="{{ pair.artifact2.title }}">
+                            <img src="{{ pair.artifact2.display_image_url }}" 
+                                class="card-img" alt="{{ pair.artifact2.title }}"
+                                onerror="this.src='/static/no-image.png'">
                         </div>
                         <div class="card-body compact-body">
                             <h5 class="card-title">{{ pair.artifact2.title }}</h5>

@@ -1,74 +1,464 @@
 {% extends "base.html" %}
 
-{% block title %}Upload Artifact - Museum Artifacts Database{% endblock %}
+{% block title %}Add Artifact - Museum Artifacts Database{% endblock %}
 
 {% block content %}
+<style>
+.search-suggestions {
+    border: 1px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 0.375rem 0.375rem;
+    background: white;
+    max-height: 400px;
+    overflow-y: auto;
+    position: absolute;
+    width: 100%;
+    z-index: 1000;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.suggestion-item {
+    padding: 12px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    transition: background-color 0.2s;
+}
+
+.suggestion-item:hover {
+    background-color: #f8f9fa;
+}
+
+.suggestion-item.selected {
+    background-color: #e3f2fd;
+    border-left: 4px solid #2196f3;
+}
+
+.suggestion-image {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 4px;
+    margin-right: 12px;
+    border: 1px solid #ddd;
+}
+
+.suggestion-content {
+    flex-grow: 1;
+}
+
+.suggestion-title {
+    font-weight: 600;
+    margin-bottom: 2px;
+    font-size: 0.95em;
+}
+
+.suggestion-artist {
+    color: #666;
+    font-size: 0.85em;
+    margin-bottom: 2px;
+}
+
+.suggestion-meta {
+    font-size: 0.75em;
+    color: #888;
+}
+
+.permission-badge {
+    font-size: 0.65em;
+    padding: 2px 6px;
+    border-radius: 12px;
+    margin-left: 8px;
+}
+
+.permission-ok { background-color: #d4edda; color: #155724; }
+.permission-limited { background-color: #fff3cd; color: #856404; }
+.permission-restricted { background-color: #f8d7da; color: #721c24; }
+
+.search-container {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.search-input {
+    border-radius: 0.375rem 0.375rem 0 0;
+}
+
+.no-image-placeholder {
+    width: 60px;
+    height: 60px;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+    color: #666;
+}
+
+.selected-artifact {
+    background: #e3f2fd;
+    border: 1px solid #2196f3;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+    display: none;
+}
+
+.selected-artifact.show {
+    display: block;
+}
+
+.mode-toggle {
+    margin-bottom: 20px;
+}
+
+.tab-content {
+    border: 1px solid #dee2e6;
+    border-top: none;
+    padding: 20px;
+    border-radius: 0 0 0.375rem 0.375rem;
+}
+
+.nav-tabs .nav-link.active {
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+</style>
+
 <div class="card">
     <div class="card-header bg-primary text-white">
-        <h4 class="mb-0">Upload New Artifact</h4>
+        <h4 class="mb-0">Add New Artifact</h4>
     </div>
     <div class="card-body">
-        <form method="post" enctype="multipart/form-data">
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label for="title" class="form-label">Title *</label>
-                        <input type="text" class="form-control" id="title" name="title" required>
+        <!-- Mode Selection Tabs -->
+        <ul class="nav nav-tabs" id="addArtifactTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="harvard-tab" data-bs-toggle="tab" data-bs-target="#harvard-content" type="button" role="tab">
+                    <i class="fas fa-university me-2"></i>From Harvard Art Museums
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="manual-tab" data-bs-toggle="tab" data-bs-target="#manual-content" type="button" role="tab">
+                    <i class="fas fa-upload me-2"></i>Manual Upload
+                </button>
+            </li>
+        </ul>
+        
+        <div class="tab-content" id="addArtifactTabContent">
+            <!-- Harvard API Tab -->
+            <div class="tab-pane fade show active" id="harvard-content" role="tabpanel">
+                <form method="post" id="harvardForm">
+                    <div class="mb-4">
+                        <h6 class="text-primary">
+                            <i class="fas fa-search me-2"></i>Search Harvard Art Museums
+                        </h6>
+                        <p class="text-muted mb-3">
+                            Search by object ID, title, or artist name. Try "319272", "Van Gogh", or "Greek pottery".
+                        </p>
+                        
+                        <div class="search-container">
+                            <input type="text" 
+                                   class="form-control search-input" 
+                                   id="searchInput" 
+                                   placeholder="Enter object ID (e.g., 319272), title, or artist name..."
+                                   autocomplete="off">
+                            
+                            <div id="searchSuggestions" class="search-suggestions" style="display: none;">
+                                <!-- Suggestions populated by JavaScript -->
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label for="artist" class="form-label">Artist</label>
-                        <input type="text" class="form-control" id="artist" name="artist">
+                    
+                    <!-- Selected Artifact Display -->
+                    <div id="selectedArtifact" class="selected-artifact">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <img id="selectedImage" src="" alt="" class="img-fluid rounded">
+                            </div>
+                            <div class="col-md-9">
+                                <h5 id="selectedTitle" class="text-primary"></h5>
+                                <p class="text-muted mb-2">
+                                    <strong>Artist:</strong> <span id="selectedArtist"></span><br>
+                                    <strong>Date:</strong> <span id="selectedDate"></span><br>
+                                    <strong>Medium:</strong> <span id="selectedMedium"></span><br>
+                                    <strong>Classification:</strong> <span id="selectedClassification"></span>
+                                </p>
+                                <p class="small">
+                                    <span id="selectedPermission" class="permission-badge"></span>
+                                    <a id="selectedHarvardLink" href="" target="_blank" class="ms-2">
+                                        <i class="fas fa-external-link-alt"></i> View on Harvard Art Museums
+                                    </a>
+                                </p>
+                            </div>
+                        </div>
                     </div>
-                </div>
+                    
+                    <input type="hidden" id="harvardId" name="harvard_id" value="">
+                    
+                    <button type="submit" class="btn btn-primary" id="harvardSubmitBtn" disabled>
+                        <i class="fas fa-plus me-2"></i>Add Harvard Artifact
+                    </button>
+                </form>
             </div>
             
-            <div class="row">
-                <div class="mb-3">
-                    <label for="culture" class="form-label">Culture</label>
-                    <input type="text" class="form-control" id="culture" name="culture" 
-                           placeholder="e.g., Japanese, French, Chinese, etc.">
-                </div>
-                <div class="col-md-4">
-                    <div class="mb-3">
-                        <label for="period" class="form-label">Period</label>
-                        <input type="text" class="form-control" id="period" name="period">
+            <!-- Manual Upload Tab -->
+            <div class="tab-pane fade" id="manual-content" role="tabpanel">
+                <form method="post" enctype="multipart/form-data" id="manualForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="title" class="form-label">Title *</label>
+                                <input type="text" class="form-control" id="title" name="title" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="artist" class="form-label">Artist</label>
+                                <input type="text" class="form-control" id="artist" name="artist">
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="mb-3">
-                        <label for="medium" class="form-label">Medium</label>
-                        <input type="text" class="form-control" id="medium" name="medium">
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="culture" class="form-label">Culture</label>
+                                <input type="text" class="form-control" id="culture" name="culture" 
+                                       placeholder="e.g., Japanese, French, Chinese">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="period" class="form-label">Period</label>
+                                <input type="text" class="form-control" id="period" name="period">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="medium" class="form-label">Medium</label>
+                                <input type="text" class="form-control" id="medium" name="medium">
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div class="col-md-4">
+                    
                     <div class="mb-3">
                         <label for="museum" class="form-label">Museum</label>
                         <input type="text" class="form-control" id="museum" name="museum">
                     </div>
-                </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="metadata" class="form-label">Additional Metadata</label>
+                        <textarea class="form-control" id="metadata" name="metadata" rows="2" 
+                                  placeholder="Enter any additional metadata here"></textarea>
+                        <div class="form-text">Add any additional information that doesn't fit in the fields above</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="image" class="form-label">Artifact Image *</label>
+                        <input class="form-control" type="file" id="image" name="image" accept="image/*" required>
+                        <div class="form-text">Supported formats: JPG, PNG, GIF, TIFF, WebP</div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-upload me-2"></i>Upload Artifact
+                    </button>
+                </form>
             </div>
-            
-            <div class="mb-3">
-                <label for="description" class="form-label">Description</label>
-                <textarea class="form-control" id="description" name="description" rows="3"></textarea>
-            </div>
-            
-            <div class="mb-3">
-                <label for="metadata" class="form-label">Additional Metadata</label>
-                <textarea class="form-control" id="metadata" name="metadata" rows="2" placeholder="Enter any additional metadata here"></textarea>
-                <div class="form-text">Add any additional information that doesn't fit in the fields above</div>
-            </div>
-            
-            <div class="mb-3">
-                <label for="image" class="form-label">Artifact Image *</label>
-                <input class="form-control" type="file" id="image" name="image" accept="image/*" required>
-                <div class="form-text">Supported formats: JPG, PNG, GIF, TIFF, WebP</div>
-            </div>
-            
-            <button type="submit" class="btn btn-primary">Upload Artifact</button>
-        </form>
+        </div>
+        
+        <!-- Help Section -->
+        <div class="mt-4 p-3 bg-light rounded">
+            <h6 class="text-muted">
+                <i class="fas fa-info-circle me-2"></i>Tips
+            </h6>
+            <ul class="mb-0 text-muted small">
+                <li>Use <strong>Harvard Art Museums</strong> tab to add artifacts from their collection with full metadata</li>
+                <li>Use <strong>Manual Upload</strong> tab for your own photographs or artifacts not in Harvard's collection</li>
+                <li>Find Harvard object IDs by visiting <a href="https://harvardartmuseums.org/collections" target="_blank">their website</a> and copying the ID from the URL</li>
+            </ul>
+        </div>
     </div>
 </div>
+
+<script>
+let searchTimeout;
+let selectedArtifactId = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchInput');
+    const searchSuggestions = document.getElementById('searchSuggestions');
+    const selectedArtifact = document.getElementById('selectedArtifact');
+    const harvardSubmitBtn = document.getElementById('harvardSubmitBtn');
+    const harvardIdInput = document.getElementById('harvardId');
+    
+    // Search functionality
+    searchInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        
+        if (query.length < 2) {
+            hideSearchSuggestions();
+            return;
+        }
+        
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            searchArtifacts(query);
+        }, 300);
+    });
+    
+    // Hide suggestions when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!searchSuggestions.contains(e.target) && e.target !== searchInput) {
+            hideSearchSuggestions();
+        }
+    });
+    
+    function searchArtifacts(query) {
+        showLoading();
+        
+        fetch(`/api/search?q=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showError(data.error);
+                } else {
+                    showSuggestions(data.suggestions);
+                }
+            })
+            .catch(error => {
+                console.error('Search error:', error);
+                showError('Failed to search artifacts');
+            });
+    }
+    
+    function showLoading() {
+        searchSuggestions.innerHTML = `
+            <div class="text-center p-3">
+                <i class="fas fa-spinner fa-spin me-2"></i>Searching Harvard Art Museums...
+            </div>
+        `;
+        searchSuggestions.style.display = 'block';
+    }
+    
+    function showError(message) {
+        searchSuggestions.innerHTML = `
+            <div class="text-center text-danger p-3">
+                <i class="fas fa-exclamation-triangle me-2"></i>${message}
+            </div>
+        `;
+    }
+    
+    function showSuggestions(suggestions) {
+        if (suggestions.length === 0) {
+            searchSuggestions.innerHTML = `
+                <div class="text-center text-muted p-3">
+                    <i class="fas fa-search me-2"></i>No artifacts found. Try a different search term.
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '';
+        suggestions.forEach(suggestion => {
+            const permissionClass = getPermissionClass(suggestion.image_permission_level);
+            const imageHtml = suggestion.thumbnail_url ? 
+                `<img src="${suggestion.thumbnail_url}" alt="${suggestion.title}" class="suggestion-image">` :
+                `<div class="no-image-placeholder"><i class="fas fa-image"></i></div>`;
+                
+            html += `
+                <div class="suggestion-item" data-id="${suggestion.id}" data-suggestion='${JSON.stringify(suggestion)}'>
+                    ${imageHtml}
+                    <div class="suggestion-content">
+                        <div class="suggestion-title">${suggestion.title}</div>
+                        <div class="suggestion-artist">${suggestion.artist}</div>
+                        <div class="suggestion-meta">
+                            ${suggestion.dated} • ${suggestion.classification}
+                            <span class="permission-badge ${permissionClass}">
+                                ${suggestion.permission_text}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        searchSuggestions.innerHTML = html;
+        
+        // Add click handlers
+        searchSuggestions.querySelectorAll('.suggestion-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const suggestion = JSON.parse(this.dataset.suggestion);
+                selectArtifact(suggestion);
+            });
+        });
+    }
+    
+    function selectArtifact(suggestion) {
+        selectedArtifactId = suggestion.id;
+        harvardIdInput.value = suggestion.id;
+        
+        // Update selected artifact display
+        document.getElementById('selectedTitle').textContent = suggestion.title;
+        document.getElementById('selectedArtist').textContent = suggestion.artist;
+        document.getElementById('selectedDate').textContent = suggestion.dated || 'Unknown';
+        document.getElementById('selectedMedium').textContent = suggestion.medium || 'Unknown';
+        document.getElementById('selectedClassification').textContent = suggestion.classification || 'Unknown';
+        
+        const permissionBadge = document.getElementById('selectedPermission');
+        const permissionClass = getPermissionClass(suggestion.image_permission_level);
+        permissionBadge.className = `permission-badge ${permissionClass}`;
+        permissionBadge.textContent = suggestion.permission_text;
+        
+        document.getElementById('selectedHarvardLink').href = suggestion.harvard_url || '#';
+        
+        // Handle image
+        const selectedImage = document.getElementById('selectedImage');
+        if (suggestion.thumbnail_url) {
+            selectedImage.src = suggestion.thumbnail_url;
+            selectedImage.alt = suggestion.title;
+            selectedImage.style.display = 'block';
+        } else {
+            selectedImage.style.display = 'none';
+        }
+        
+        // Show selected artifact and enable submit
+        selectedArtifact.classList.add('show');
+        harvardSubmitBtn.disabled = false;
+        
+        // Update search input and hide suggestions
+        searchInput.value = `${suggestion.title} (ID: ${suggestion.id})`;
+        hideSearchSuggestions();
+    }
+    
+    function hideSearchSuggestions() {
+        searchSuggestions.style.display = 'none';
+    }
+    
+    function getPermissionClass(level) {
+        switch(level) {
+            case 0: return 'permission-ok';
+            case 1: return 'permission-limited';
+            case 2: return 'permission-restricted';
+            default: return 'permission-ok';
+        }
+    }
+    
+    // Form validation
+    document.getElementById('harvardForm').addEventListener('submit', function(e) {
+        if (!selectedArtifactId) {
+            e.preventDefault();
+            alert('Please select an artifact from the search results before submitting.');
+        }
+    });
+});
+</script>
 {% endblock %}

@@ -47,5 +47,7 @@ Thumbs.db
 !static/uploads/artifacts/.gitkeep
 !static/uploads/interpolations/.gitkeep
 
-# Migration files (temporary - remove after deployment)
+# Local Testing/Database Files
 database_export/
+backup_20250817_135139.sql
+static/uploads/*

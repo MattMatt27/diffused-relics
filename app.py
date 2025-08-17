@@ -1,10 +1,15 @@
 import os
 import secrets
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from flask import Flask, request, render_template, redirect, url_for, flash, session, g, jsonify, send_from_directory
 from functools import wraps
+from harvard_api import get_api_client, get_display_image_url, get_thumbnail_url
 
 # Configuration - production ready
 UPLOAD_FOLDER = 'static/uploads'
@@ -47,7 +52,7 @@ def init_db():
         db = get_db()
         cursor = db.cursor()
         
-        # Create artifacts table
+        # Create artifacts table with Harvard API fields
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS artifacts (
             id SERIAL PRIMARY KEY,
@@ -58,9 +63,32 @@ def init_db():
             medium TEXT,
             museum TEXT,
             description TEXT,
-            image_path TEXT NOT NULL,
+            image_path TEXT,
             upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            metadata TEXT
+            metadata TEXT,
+            -- Harvard API fields
+            harvard_object_id INTEGER UNIQUE,
+            harvard_object_number TEXT,
+            classification TEXT,
+            dated TEXT,
+            date_begin INTEGER,
+            date_end INTEGER,
+            century TEXT,
+            technique TEXT,
+            dimensions TEXT,
+            provenance TEXT,
+            creditline TEXT,
+            department TEXT,
+            division TEXT,
+            copyright TEXT,
+            verification_level INTEGER,
+            image_permission_level INTEGER DEFAULT 0,
+            access_level INTEGER DEFAULT 1,
+            harvard_url TEXT,
+            primary_image_url TEXT,
+            iiif_base_uri TEXT,
+            last_api_sync TIMESTAMP,
+            section TEXT
         )
         ''')
         
@@ -126,6 +154,11 @@ def index():
     cursor.execute("SELECT * FROM artifacts ORDER BY id DESC")
     artifacts = cursor.fetchall()
     
+    # Add display image URLs for each artifact
+    for artifact in artifacts:
+        artifact['display_image_url'] = get_display_image_url(dict(artifact))
+        artifact['thumbnail_url'] = get_thumbnail_url(dict(artifact))
+    
     cursor.execute("SELECT * FROM interpolations ORDER BY id DESC")
     interpolations = cursor.fetchall()
     
@@ -174,6 +207,10 @@ def index():
         artifact2 = cursor.fetchone()
         
         if artifact1 and artifact2:
+            # Add display URLs for artifacts
+            artifact1['display_image_url'] = get_display_image_url(dict(artifact1))
+            artifact2['display_image_url'] = get_display_image_url(dict(artifact2))
+            
             # Calculate position for each interpolation
             for interp in interps:
                 # Normalize the weights to get position
@@ -235,57 +272,133 @@ def logout():
 @admin_required
 def upload_artifact():
     if request.method == 'POST':
-        if 'image' not in request.files:
-            flash('No image file', 'error')
-            return redirect(request.url)
+        # Check if this is a Harvard API artifact or manual upload
+        harvard_id = request.form.get('harvard_id')
         
-        image_file = request.files['image']
-        if image_file.filename == '':
-            flash('No image selected', 'error')
-            return redirect(request.url)
-        
-        if image_file and allowed_file(image_file.filename):
-            # Save the image
-            filename = secure_filename(image_file.filename)
-            timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-            file_path = f"artifacts/{timestamp}_{filename}"
-            full_path = os.path.join(app.config['UPLOAD_FOLDER'], file_path)
-            image_file.save(full_path)
-            
-            # Get form data
-            title = request.form.get('title', '').strip()
-            artist = request.form.get('artist', '').strip()
-            culture = request.form.get('culture', '').strip()
-            period = request.form.get('period', '').strip()
-            medium = request.form.get('medium', '').strip()
-            museum = request.form.get('museum', '').strip()
-            description = request.form.get('description', '').strip()
-            metadata = request.form.get('metadata', '').strip()
-            
-            # Validate required fields
-            if not title:
-                flash('Title is required', 'error')
-                return redirect(request.url)
-            
-            # Insert into database
-            db = get_db()
-            cursor = db.cursor()
-            cursor.execute(
-                """INSERT INTO artifacts 
-                   (title, artist, culture, period, medium, museum, description, image_path, metadata) 
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                (title, artist or None, culture or None, period or None, 
-                 medium or None, museum or None, description or None, 
-                 file_path, metadata or None)
-            )
-            db.commit()
-            
-            flash('Artifact uploaded successfully', 'success')
-            return redirect(url_for('index'))
+        if harvard_id:
+            # Harvard API artifact
+            return add_harvard_artifact(harvard_id)
         else:
-            flash('Invalid file type. Please upload an image file.', 'error')
+            # Manual upload (existing functionality)
+            return add_manual_artifact()
     
     return render_template('upload_artifact.html')
+
+def add_harvard_artifact(harvard_id):
+    """Add artifact from Harvard API"""
+    try:
+        harvard_id = int(harvard_id)
+        
+        # Check if already exists
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute("SELECT id FROM artifacts WHERE harvard_object_id = %s", (harvard_id,))
+        existing = cursor.fetchone()
+        
+        if existing:
+            flash(f'Artifact with Harvard ID {harvard_id} already exists', 'info')
+            return redirect(url_for('view_artifact', artifact_id=existing['id']))
+        
+        # Fetch from API
+        api_client = get_api_client()
+        if not api_client:
+            flash('Harvard API not available. Please check API key.', 'error')
+            return redirect(url_for('upload_artifact'))
+        
+        api_data = api_client.get_object_by_id(harvard_id)
+        if not api_data:
+            flash(f'Object with ID {harvard_id} not found in Harvard Art Museums', 'error')
+            return redirect(url_for('upload_artifact'))
+        
+        # Extract data for database
+        artifact_data = api_client.extract_artifact_data(api_data)
+        artifact_data['image_path'] = 'harvard_placeholder.jpg'  # Placeholder for Harvard images
+        artifact_data['last_api_sync'] = datetime.now()
+        
+        # Insert into database
+        insert_query = """
+        INSERT INTO artifacts (
+            harvard_object_id, harvard_object_number, title, artist, culture, period, medium, museum, 
+            description, classification, dated, date_begin, date_end, century, technique, dimensions, 
+            provenance, creditline, department, division, copyright, verification_level, 
+            image_permission_level, access_level, harvard_url, primary_image_url, iiif_base_uri, 
+            last_api_sync, image_path
+        ) VALUES (
+            %(harvard_object_id)s, %(harvard_object_number)s, %(title)s, %(artist)s, %(culture)s, 
+            %(period)s, %(medium)s, %(museum)s, %(description)s, %(classification)s, %(dated)s, 
+            %(date_begin)s, %(date_end)s, %(century)s, %(technique)s, %(dimensions)s, %(provenance)s, 
+            %(creditline)s, %(department)s, %(division)s, %(copyright)s, %(verification_level)s, 
+            %(image_permission_level)s, %(access_level)s, %(harvard_url)s, %(primary_image_url)s, 
+            %(iiif_base_uri)s, %(last_api_sync)s, %(image_path)s
+        ) RETURNING id
+        """
+        
+        cursor.execute(insert_query, artifact_data)
+        artifact_id = cursor.fetchone()['id']
+        db.commit()
+        
+        flash(f'Harvard artifact "{artifact_data["title"]}" added successfully!', 'success')
+        return redirect(url_for('view_artifact', artifact_id=artifact_id))
+        
+    except ValueError:
+        flash('Invalid Harvard object ID', 'error')
+        return redirect(url_for('upload_artifact'))
+    except Exception as e:
+        flash(f'Error adding Harvard artifact: {str(e)}', 'error')
+        return redirect(url_for('upload_artifact'))
+
+def add_manual_artifact():
+    """Add artifact via manual upload (existing functionality)"""
+    if 'image' not in request.files:
+        flash('No image file', 'error')
+        return redirect(url_for('upload_artifact'))
+    
+    image_file = request.files['image']
+    if image_file.filename == '':
+        flash('No image selected', 'error')
+        return redirect(url_for('upload_artifact'))
+    
+    if image_file and allowed_file(image_file.filename):
+        # Save the image
+        filename = secure_filename(image_file.filename)
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        file_path = f"artifacts/{timestamp}_{filename}"
+        full_path = os.path.join(app.config['UPLOAD_FOLDER'], file_path)
+        image_file.save(full_path)
+        
+        # Get form data
+        title = request.form.get('title', '').strip()
+        artist = request.form.get('artist', '').strip()
+        culture = request.form.get('culture', '').strip()
+        period = request.form.get('period', '').strip()
+        medium = request.form.get('medium', '').strip()
+        museum = request.form.get('museum', '').strip()
+        description = request.form.get('description', '').strip()
+        metadata = request.form.get('metadata', '').strip()
+        
+        # Validate required fields
+        if not title:
+            flash('Title is required', 'error')
+            return redirect(url_for('upload_artifact'))
+        
+        # Insert into database
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute(
+            """INSERT INTO artifacts 
+               (title, artist, culture, period, medium, museum, description, image_path, metadata) 
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            (title, artist or None, culture or None, period or None, 
+             medium or None, museum or None, description or None, 
+             file_path, metadata or None)
+        )
+        db.commit()
+        
+        flash('Artifact uploaded successfully', 'success')
+        return redirect(url_for('index'))
+    else:
+        flash('Invalid file type. Please upload an image file.', 'error')
+        return redirect(url_for('upload_artifact'))
 
 @app.route('/upload/interpolation', methods=['GET', 'POST'])
 @admin_required
@@ -353,6 +466,11 @@ def view_artifact(artifact_id):
         flash('Artifact not found', 'error')
         return redirect(url_for('index'))
     
+    # Add display image URL
+    artifact_dict = dict(artifact)
+    artifact_dict['display_image_url'] = get_display_image_url(artifact_dict)
+    artifact_dict['thumbnail_url'] = get_thumbnail_url(artifact_dict)
+    
     # Find interpolations using this artifact
     interpolations = []
     cursor.execute("SELECT * FROM interpolations")
@@ -363,7 +481,7 @@ def view_artifact(artifact_id):
         if str(artifact_id) in artifact_ids:
             interpolations.append(interp)
     
-    return render_template('view_artifact.html', artifact=artifact, interpolations=interpolations)
+    return render_template('view_artifact.html', artifact=artifact_dict, interpolations=interpolations)
 
 @app.route('/edit/artifact/<int:artifact_id>', methods=['POST'])
 @admin_required
@@ -483,6 +601,43 @@ def view_interpolation(interpolation_id):
     
     return render_template('view_interpolation.html', interpolation=interpolation, source_artifacts=source_artifacts)
 
+# API endpoints for Harvard search
+@app.route('/api/search')
+def api_search_harvard():
+    """API endpoint for searching Harvard artifacts"""
+    query = request.args.get('q', '').strip()
+    
+    if len(query) < 2:
+        return jsonify({'suggestions': []})
+    
+    try:
+        api_client = get_api_client()
+        if not api_client:
+            return jsonify({'error': 'Harvard API not available'}), 500
+        
+        results = api_client.search_objects(query, size=5)
+        return jsonify({'suggestions': results})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/artifact/<int:harvard_id>')
+def api_get_harvard_artifact(harvard_id):
+    """Get full Harvard artifact details"""
+    try:
+        api_client = get_api_client()
+        if not api_client:
+            return jsonify({'error': 'Harvard API not available'}), 500
+        
+        data = api_client.get_object_by_id(harvard_id)
+        if data:
+            return jsonify(data)
+        else:
+            return jsonify({'error': 'Artifact not found'}), 404
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # Health check endpoint for Railway
 @app.route('/health')
 def health_check():
@@ -495,6 +650,6 @@ def uploaded_file(filename):
 
 # Production server configuration
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 5005))
     debug_mode = os.environ.get('FLASK_ENV') == 'development'
     app.run(host='0.0.0.0', port=port, debug=debug_mode)

@@ -3,8 +3,9 @@
 {% block content %}
 <div class="row">
     <div class="col-md-6">
-        <img src="{{ url_for('static', filename='uploads/' + artifact.image_path) }}" 
-             class="img-fluid rounded" alt="{{ artifact.title }}">
+        <img src="{{ artifact.display_image_url }}" 
+             class="img-fluid rounded" alt="{{ artifact.title }}"
+             onerror="this.src='/static/no-image.png'">
     </div>
     <div class="col-md-6">
         <div class="card h-100">
@@ -47,7 +48,58 @@
                         <dt class="col-sm-3">Museum</dt>
                         <dd class="col-sm-9">{{ artifact.museum }}</dd>
                         {% endif %}
+                        
+                        {% if artifact.classification %}
+                        <dt class="col-sm-3">Classification</dt>
+                        <dd class="col-sm-9">{{ artifact.classification }}</dd>
+                        {% endif %}
+                        
+                        {% if artifact.dated %}
+                        <dt class="col-sm-3">Date</dt>
+                        <dd class="col-sm-9">{{ artifact.dated }}</dd>
+                        {% endif %}
+                        
+                        {% if artifact.dimensions %}
+                        <dt class="col-sm-3">Dimensions</dt>
+                        <dd class="col-sm-9">{{ artifact.dimensions }}</dd>
+                        {% endif %}
+                        
+                        {% if artifact.technique %}
+                        <dt class="col-sm-3">Technique</dt>
+                        <dd class="col-sm-9">{{ artifact.technique }}</dd>
+                        {% endif %}
                     </dl>
+                    
+                    {% if artifact.harvard_object_id %}
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-university me-2"></i>Harvard Art Museums</h6>
+                        <p class="mb-1"><strong>Object ID:</strong> {{ artifact.harvard_object_id }}</p>
+                        {% if artifact.harvard_object_number %}
+                        <p class="mb-1"><strong>Object Number:</strong> {{ artifact.harvard_object_number }}</p>
+                        {% endif %}
+                        {% if artifact.harvard_url %}
+                        <p class="mb-1">
+                            <a href="{{ artifact.harvard_url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-external-link-alt me-1"></i>View on Harvard Website
+                            </a>
+                        </p>
+                        {% endif %}
+                        {% if artifact.image_permission_level is not none %}
+                        <p class="mb-0">
+                            <small class="text-muted">
+                                Image Permission: 
+                                {% if artifact.image_permission_level == 0 %}
+                                    <span class="text-success">Full display allowed</span>
+                                {% elif artifact.image_permission_level == 1 %}
+                                    <span class="text-warning">Limited to 256px</span>
+                                {% else %}
+                                    <span class="text-danger">No image display</span>
+                                {% endif %}
+                            </small>
+                        </p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                     
                     {% if artifact.description %}
                     <h5>Description</h5>
