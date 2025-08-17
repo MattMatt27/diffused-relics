@@ -43,8 +43,9 @@
                     <div class="row g-0">
                         <div class="col-4">
                             <div class="artifact-thumbnail">
-                                <img src="{{ url_for('static', filename='uploads/' + artifact.image_path) }}" 
-                                     class="img-fluid rounded-start" alt="{{ artifact.title }}">
+                                <img src="{{ artifact.display_image_url }}" 
+                                     class="img-fluid rounded-start" alt="{{ artifact.title }}"
+                                     onerror="this.src='/static/no-image.png'">
                             </div>
                         </div>
                         <div class="col-8">

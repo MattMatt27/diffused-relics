@@ -597,6 +597,9 @@ def view_interpolation(interpolation_id):
         if artifact:
             artifact_dict = dict(artifact)
             artifact_dict['weight'] = weights[i] if i < len(weights) else "1.0"
+            # Add display image URLs
+            artifact_dict['display_image_url'] = get_display_image_url(artifact_dict)
+            artifact_dict['thumbnail_url'] = get_thumbnail_url(artifact_dict)
             source_artifacts.append(artifact_dict)
     
     return render_template('view_interpolation.html', interpolation=interpolation, source_artifacts=source_artifacts)
